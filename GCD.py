@@ -72,25 +72,6 @@ class UnifiedDataGCD:
                 print("Warning! No matching units found.")
         df.columns = [item['title'] for item in self.headers]   
 
-        # Duplicate the first column and insert it after every other column
-        first_column_name = df.columns[0]
-        first_column = df.iloc[:, 0].values[:, np.newaxis]
-        for i in range(2, len(df.columns) * 2, 2):
-            df.insert(i, first_column_name, first_column, allow_duplicates=True)
-
-        return df
-   
-    def adjust_duplicated_columns(self, df):
-
-        # Get duplicated columns
-        duplicated_columns = df.columns[df.columns.duplicated(keep=False)]
-        for i in range(0, len(duplicated_columns), 2):
-            col1 = duplicated_columns[i]
-            col2 = duplicated_columns[i+1]
-
-            df[col1] = df[col1].where(df[col1].notnull(), None)
-            df[col2] = df[col2].where(df[col2].notnull(), None)
-                              
         return df
 
 
