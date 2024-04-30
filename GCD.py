@@ -2,7 +2,53 @@ from DataImporter import *
 import pandas as pd
 import numpy as np
 
+class GCDExperimentSpecs:
+    """
+    Represents the specifications for a GCD (Galvanostatic Cycling and Discharging) experiment.
 
+    Args:
+        level_number (int): The number of levels in the experiment.
+        level_current (list): A list of current values for each level.
+        level_time (list): A list of time values for each level.
+        cycle_seperated (bool, optional): Whether the cycles are separated. Defaults to False.
+        level_seperated (bool, optional): Whether the levels are separated. Defaults to False.
+
+    Raises:
+        ValueError: If levels are separated but cycles are not.
+        ValueError: If level_number is not a positive integer.
+        ValueError: If level_current and level_time have different lengths than level_number.
+
+    """
+
+    def __init__(self,
+                 level_number,
+                 level_current,
+                 level_time,
+                 material_mass,
+                 cycle_seperated=False,
+                 level_seperated=False
+                 ):
+        self.cycle_seperated = cycle_seperated
+        self.level_seperated = level_seperated
+        self.level_number = level_number 
+        self.level_current = level_current 
+        self.level_time = level_time
+        self.material_mass = material_mass
+        self._double_check()
+
+    def _double_check(self):#mass must be positive integer. addd this to the error message
+        if not self.cycle_seperated and self.level_seperated:
+            raise ValueError("Levels cannot be separated if cycles are not.")
+        if not (isinstance(self.level_number, int) and self.level_number > 0):
+            raise ValueError("Level number must be a positive integer.")
+        if not (len(self.level_current) == len(self.level_time) == self.level_number):
+            raise ValueError("Level current and time must have the same length as level number.")
+        # if not all(isinstance(x, (int, float)) for x in self.level_current):
+        #     raise ValueError("Level current must be a number.")
+        # if not all(isinstance(x, (int, float)) for x in self.level_time):
+        #     raise ValueError("Level time must be a number.")
+        
+                
 class UnifiedDataGCD:
     def __init__(self, obj):
         """
@@ -71,13 +117,32 @@ class UnifiedDataGCD:
             else:
                 print("Warning! No matching units found.")
         df.columns = [item['title'] for item in self.headers]   
-
         return df
+    
+    def Unification(self, data, specs):
+        if specs.cycle_seperated and specs.level_seperated:
+            data_new = pd.DataFrame()
+            for i in len(data.columns)/2:
+                dummy = pd.DataFrame()
+                dummy['Time / s'] = data.iloc[:, 2*i]
+                dummy['Potential / V'] = data.iloc[:, 2*i+1]
+                dummy['Current / A'] = specs.level_current[(i % specs.level_number)]
+                data_new = pd.concat([data_new, dummy])
+        return data_new
+    
+    def CapacityCalculater(self, data, specs):#specific capacity mAh/g
+       #3 kolonlu datayı 4 kolna çıkar!
+       #4. kolon spesifik kapasite
+        return 
 
 
 if __name__ == "__main__":
-    path = './GCD/0.1Ag-1.csv'
-    # Create DataImport object and print results
-    obj = DataImport(path=path)
-    obj2 = UnifiedDataGCD(obj)
-    print(obj2.uni_data) 
+    # Example usage
+    specs = GCDExperimentSpecs(
+        level_number=3,
+        level_current=[0.1, 0.2, 0.3],
+        level_time=[10, 20, 30],
+        cycle_seperated=True,
+        level_seperated=True
+    )
+
