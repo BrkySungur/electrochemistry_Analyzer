@@ -2,6 +2,7 @@ from DataImporter import *
 import pandas as pd
 import numpy as np
 
+##### classes #####
 class GCDExperimentSpecs:
     """
     Represents the specifications for a GCD (Galvanostatic Cycling and Discharging) experiment.
@@ -36,21 +37,22 @@ class GCDExperimentSpecs:
         self.material_mass = material_mass
         self._double_check()
 
-    def _double_check(self):#mass must be positive integer. addd this to the error message
+    def _double_check(self):
         if not self.cycle_seperated and self.level_seperated:
             raise ValueError("Levels cannot be separated if cycles are not.")
         if not (isinstance(self.level_number, int) and self.level_number > 0):
             raise ValueError("Level number must be a positive integer.")
+        if not (isinstance(self.material_mass, (int, float)) and self.material_mass > 0):
+            raise ValueError("Active material mass must be a positive.")
         if not (len(self.level_current) == len(self.level_time) == self.level_number):
             raise ValueError("Level current and time must have the same length as level number.")
-        # if not all(isinstance(x, (int, float)) for x in self.level_current):
-        #     raise ValueError("Level current must be a number.")
-        # if not all(isinstance(x, (int, float)) for x in self.level_time):
-        #     raise ValueError("Level time must be a number.")
-        
-                
+        if not all(isinstance(x, (int, float)) for x in self.level_current):
+            raise ValueError("Level current must be a number.")
+        if not all(isinstance(x, (int, float)) for x in self.level_time):
+            raise ValueError("Level time must be a number.")
+              
 class UnifiedDataGCD:
-    def __init__(self, obj):
+    def __init__(self, obj, specs):
         """
         Initializes UnifiedDataGCD object with given data object from DataImport at DataImporter.py.
 
@@ -60,12 +62,14 @@ class UnifiedDataGCD:
         Attributes:
         - raw_data: Raw data DataFrame.
         - headers: List of dictionaries containing header information.
-        - uni_data: DataFrame with converted units.
+        - unified_data: DataFrame with converted units.
         """
         self.raw_data = obj.data
         self.headers = self.splitter(self.raw_data.columns.tolist())
-        self.uni_data = self.SIConverter(self.raw_data)
-
+        self.unified_data = self.Unification(
+                                         self.SIConverter(self.raw_data),
+                                         specs
+                                        )
     def splitter(self, input):
         """
         Splits headers into title, unit, and find SI-conversion multiplier.
@@ -122,27 +126,34 @@ class UnifiedDataGCD:
     def Unification(self, data, specs):
         if specs.cycle_seperated and specs.level_seperated:
             data_new = pd.DataFrame()
-            for i in len(data.columns)/2:
+            for i in range(data.shape[1]//2): ## // kullanırsan hep integer sonuç gelir tek / sonucu float olur ##
                 dummy = pd.DataFrame()
                 dummy['Time / s'] = data.iloc[:, 2*i]
                 dummy['Potential / V'] = data.iloc[:, 2*i+1]
                 dummy['Current / A'] = specs.level_current[(i % specs.level_number)]
-                data_new = pd.concat([data_new, dummy])
+                data_new = pd.concat([data_new, dummy], axis=1)
         return data_new
+
+
+##### Functions #####
+##### Kapasite hesaplaması başka bir class içinde olmasın onu fonksiyon olarak tutalım #####
+def CapacityCalculater(arg, arg2):
     
-    def CapacityCalculater(self, data, specs):#specific capacity mAh/g
-       #3 kolonlu datayı 4 kolna çıkar!
-       #4. kolon spesifik kapasite
-        return 
+    return
 
-
+##### Test #####
 if __name__ == "__main__":
     # Example usage
     specs = GCDExperimentSpecs(
-        level_number=3,
-        level_current=[0.1, 0.2, 0.3],
-        level_time=[10, 20, 30],
+        level_number=2,
+        level_current=[0.1, -0.1],
+        level_time=[99999, 99999],
+        material_mass=56.789e-9,
         cycle_seperated=True,
         level_seperated=True
     )
 
+    test = DataImport('./GCD/0.1Ag-1.xlsx')
+    print(test.data)
+    test = UnifiedDataGCD(test, specs)
+    print(test.unified_data)
