@@ -131,6 +131,10 @@ class UnifiedDataGCD:
                 dummy['Time / s'] = data.iloc[:, 2*i]
                 dummy['Potential / V'] = data.iloc[:, 2*i+1]
                 dummy['Current / A'] = specs.level_current[(i % specs.level_number)]
+                dummy['Capacity / mAh/g'] = CapacityCalculater(dummy, specs.material_mass)
+                dummy['Energy Density / Wh/kg'] = CapacityCalculater(dummy, specs.material_mass)
+                dummy['Power Density / W/kg'] = CapacityCalculater(dummy, specs.material_mass)
+
                 data_new = pd.concat([data_new, dummy], axis=1)
         return data_new
 
@@ -146,19 +150,21 @@ def CapacityCalculater(data_new, material_mass):
     - material_mass: Mass of the material in grams.
 
     Returns:
-    - capacity: Calculated specific capacity in mA.h/g
+    - capacity: Calculated specific capacity in mAh/g
     """
-    total_charge = data_new['Current / A'].sum() * data_new['Time / s'].max()
-    capacity = total_charge * 1000 / (material_mass * 3600)
-    return capacity
+    capacity = (data_new['Current / A'].sum() * data_new['Time / s'].max())* 1000 / (material_mass * 3600) 
+    EnergyDensity = np.trapz(data_new['Capacity / mAh/g'], data_new['Potential / V'])
+    PowerDensity = (data_new['
+###Uykum geldi burayı yarına bırakıyorum.###
+    return capacity, EnergyDensity, PowerDensity
 
 ##### Test #####
 if __name__ == "__main__":
     # Example usage
     specs = GCDExperimentSpecs(
-        level_number=2,
-        level_current=[0.1, -0.1],
-        level_time=[99999, 99999],
+        level_number=4,
+        level_current=[0.2, 0.1, -0.1, -0.2],
+        level_time=[99999, 99999, 99999, 99999],
         material_mass=56.789e-9,
         cycle_seperated=True,
         level_seperated=True
