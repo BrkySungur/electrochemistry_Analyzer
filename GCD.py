@@ -11,12 +11,12 @@ Functions:
 - CalculaterForBattery: Calculates specific capacity for a battery based on provided data and specifications.
 
 Further Notes:
-- 
+- Documentation will be added and fixed. !!!!
 """
 
 from DataImporter import *
 import pandas as pd
-import numpy as np
+from scipy.integrate import cumulative_trapezoid
 
 ##### classes #####
 class GCDExperimentSpecs:
@@ -146,7 +146,7 @@ class UnifiedDataGCD:
     def Unification(self, data, specs):
         if specs.cycle_seperated and specs.level_seperated:
             new_df = pd.DataFrame()
-            for i in range(data.shape[1]//2): ## // kullanırsan hep integer sonuç gelir tek / sonucu float olur ##
+            for i in range(data.shape[1]//2):
                 dummy = pd.DataFrame()
                 dummy['Time / s']       = data.iloc[:, 2*i]
                 dummy['Current / A']    = specs.level_current[(i % specs.level_number)]
@@ -156,13 +156,42 @@ class UnifiedDataGCD:
 
 
 ##### Functions #####
-def CalculaterForBattery(data, mass):
+def DataExporterGCD(levels_info, levels_details, file_path, number_of_rows=100):
+    file_path = file_path + ' Results.xlsx'
+    # Convert JSON data to DataFrame
+    df_summary = pd.DataFrame(levels_info)
+    
+    # Create an Excel writer
+    with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+        # Write summary DataFrame to the Summary sheet
+        df_summary.to_excel(writer, index=False, sheet_name='Summary')
+        # Get the workbook object
+        workbook = writer.book
+        # Write details DataFrames to the Details sheets
+        for index, items in enumerate(levels_details):
+            # Calculate the step size
+            if not len(items) <= number_of_rows:
+                step_size = max(len(items) // number_of_rows, 1)
+                items = items.iloc[::step_size]
+            # Ensure that the compressed data has the desired number of rows
+            items = items.head(number_of_rows)
+            # Write the details DataFrame to the Details sheet
+            items.to_excel(writer, index=False, sheet_name='Details', startcol=7*index, startrow=1)
+            # Access the Details sheet in the workbook
+            sheet = workbook['Details']
+            # Add string to specific cell
+            sheet.cell(row=1, column=7*index + 1, value='Level ID')
+            sheet.cell(row=1, column=7*index + 2, value=index+1)
+    return
+    
+
+def CalculaterForBattery(unified_data, specs):
     """
     Calculate specific capacity for a battery based on provided data and specifications.
 
     Parameters:
-        data (pandas DataFrame): DataFrame containing battery data from unified_data from UnifiedDataGCD.
-        mass (float, int): Mass of the active material. Mass should be unit of gram.
+        unified_data (pandas DataFrame): DataFrame from unified_data of UnifiedDataGCD.
+        # # # mass (float, int): Mass of the active material. Mass should be unit of gram.
 
     Returns:
         tuple: A tuple containing:
@@ -201,30 +230,41 @@ def CalculaterForBattery(data, mass):
                 ...
             ]
     """
+    mass = specs.material_mass
+    data = unified_data.unified_data
     # Initialize an empty DataFrame to store the calculated data
     new_df = pd.DataFrame()
     # Initialize an empty list to store level information
     levels_info = []
-    # Iterate through each set of three columns in the data DataFrame
+    dataframes = []
+    # Iterate through each set of three columns in the unified_data DataFrame
     for i in range(data.shape[1]//3):
         # Initialize a temporary DataFrame to store data for the current level
         dummy = pd.DataFrame()
         # Extract data for the current level
-        dummy['Time / s']       = data.iloc[:,3*i].copy()
+        # Calculate specific capacity for the current level
+        # Calculate energy density and power density for the each row of current level
+        # Calculate power density from energy density and time for the each row of current level
+        dummy['Time / s']       = data.iloc[:,3*i]
         dummy['Current / A']    = data.iloc[:,3*i+1]
         dummy['Potential / V']  = data.iloc[:, 3*i+2]
-        # Calculate specific capacity for the current level
         dummy['Specific Capacity / mAh/g'] = abs((dummy['Time / s'] / 3600) * dummy['Current / A'] 
                                                  / (mass))
+        dummy['Energy Density / Wh/kg'] = abs(cumulative_trapezoid(
+                                                               dummy['Specific Capacity / mAh/g'],
+                                                               x=dummy['Potential / V'],
+                                                               initial=0
+                                                               ))
+        dummy['Power Density / W/kg'] = dummy['Energy Density / Wh/kg'] / (dummy['Time / s'] / 3600)
+
         # Drop rows with NaN values
         dummy = dummy.dropna()
-        # Calculate energy density and power density for the current level
-        dummy['Energy Density / Wh/kg'] = np.trapz(dummy['Potential / V'], dummy['Specific Capacity / mAh/g'])
-        # Calculate power density from energy density and time
-        dummy['Power Density / W/kg'] = dummy['Energy Density / Wh/kg'] / (dummy['Time / s'] / 3600)
+        
         # Store information about the current level
         level_informations = {
-            'Level'                     : i+1,
+            'ID'                        : i+1,
+            'Cycle'                     : i//specs.level_number + 1,
+            'Level'                     : i % specs.level_number + 1,
             'Current / A'               : dummy['Current / A'].iloc[-1],
             'Time / s'                  : dummy['Time / s'].iloc[-1],
             'Specific Capacity / mAh/g' : dummy['Specific Capacity / mAh/g'].iloc[-1],
@@ -233,30 +273,27 @@ def CalculaterForBattery(data, mass):
         }
 
         # Concatenate the current level's data with the overall DataFrame
-        new_df = pd.concat([new_df, dummy], axis=1)
+        dataframes.append(dummy)
         # Append the information about the current level to the list
         levels_info.append(level_informations)
     
     # Return the DataFrame and the list of level information
-    return new_df, levels_info
+    return dataframes, levels_info
 
 ##### Test #####
 if __name__ == "__main__":
     # Example usage
     specs = GCDExperimentSpecs(
         level_number=2,
-        level_current=[0.001, -0.001],
-        level_time=[0.2, 0.02],
-        material_mass= 0.002,
+        level_current=[0.7038, -0.7038],
+        level_time=[99999, 99999],
+        material_mass= 0.004116,
         cycle_seperated=True,
         level_seperated=True
     )
 
-    test = DataImport('./GCD/0.1Ag-1.xlsx')
-    print(test.data)
-    test = UnifiedDataGCD(test, specs)
-    print(test.unified_data)
+    imported_data = DataImport('./test.xlsx')
+    data = UnifiedDataGCD(imported_data, specs)
 
-    df , list = CalculaterForBattery(test.unified_data, specs.material_mass)
-    print(df)
-    print(list)
+    df , list = CalculaterForBattery(data, specs)
+    DataExporterGCD(list, df,  imported_data.file_name)
