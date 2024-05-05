@@ -218,13 +218,18 @@ def CalculaterForBattery(data, mass):
                                                  / (mass))
         # Drop rows with NaN values
         dummy = dummy.dropna()
-
+        # Calculate energy density and power density for the current level
+        dummy['Energy Density / Wh/kg'] = np.trapz(dummy['Potential / V'], dummy['Specific Capacity / mAh/g'])
+        # Calculate power density from energy density and time
+        dummy['Power Density / W/kg'] = dummy['Energy Density / Wh/kg'] / (dummy['Time / s'] / 3600)
         # Store information about the current level
         level_informations = {
-            'Level'                     : i,
+            'Level'                     : i+1,
             'Current / A'               : dummy['Current / A'].iloc[-1],
             'Time / s'                  : dummy['Time / s'].iloc[-1],
-            'Specific Capacity / mAh/g' : dummy['Specific Capacity / mAh/g'].iloc[-1]
+            'Specific Capacity / mAh/g' : dummy['Specific Capacity / mAh/g'].iloc[-1],
+            'Energy Density / Wh/kg'    : dummy['Energy Density / Wh/kg'].iloc[-1],
+            'Power Density / W/kg'      : dummy['Power Density / W/kg'].iloc[-1]
         }
 
         # Concatenate the current level's data with the overall DataFrame
