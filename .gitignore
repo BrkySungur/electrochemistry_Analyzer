@@ -1,6 +1,3 @@
 .env
 __pycache__
 dev.py
-output.json
-test.xlsx
-test Results.xlsx

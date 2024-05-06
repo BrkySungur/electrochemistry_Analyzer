@@ -12,11 +12,14 @@ Functions:
 
 Further Notes:
 - Documentation will be added and fixed. !!!!
+- Delete all the existing documentation for codes and rewrite. !!!!!
+- class objects could be merged
 """
 
 from DataImporter import *
 import pandas as pd
 from scipy.integrate import cumulative_trapezoid
+from typing import List, Dict, Union
 
 ##### classes #####
 class GCDExperimentSpecs:
@@ -25,8 +28,8 @@ class GCDExperimentSpecs:
 
     Args:
         level_number (int): The number of levels in the experiment.
-        level_current (list of float): A list of current values for each level.
-        level_time (list of float): A list of time values for each level.
+        level_current (List[float]): A list of current values for each level in Ampere.
+        level_time (List[float]): A list of time values for each level.
         material_mass (float): Mass of the active material in grams.
         cycle_separated (bool, optional): Whether the cycles are separated. Defaults to False.
         level_separated (bool, optional): Whether the levels are separated. Defaults to False.
@@ -38,69 +41,72 @@ class GCDExperimentSpecs:
         ValueError: If level_current and level_time have different lengths than level_number.
         ValueError: If any element in level_current is not a number.
         ValueError: If any element in level_time is not a positive number.
-
     """
 
-    def __init__(self,
-                 level_number,
-                 level_current,
-                 level_time,
-                 material_mass,
-                 cycle_seperated=False,
-                 level_seperated=False
-                 ):
-        self.cycle_seperated = cycle_seperated
-        self.level_seperated = level_seperated
+    def __init__(
+        self,
+        level_number: int,
+        level_current: List[float],
+        level_time: List[float],
+        material_mass: float,
+        cycle_separated: bool = False,
+        level_separated: bool = False
+    ) -> None:
+        self.cycle_separated = cycle_separated
+        self.level_separated = level_separated
         self.level_number = level_number 
         self.level_current = level_current 
         self.level_time = level_time
         self.material_mass = material_mass
-        self._double_check()
+        self._validate_inputs()
 
-    def _double_check(self):
-        if not self.cycle_seperated and self.level_seperated:
+    def _validate_inputs(self) -> None:
+        if self.level_separated and not self.cycle_separated:
             raise ValueError("Levels cannot be separated if cycles are not.")
-        if not (isinstance(self.level_number, int) and self.level_number > 0):
+        if not isinstance(self.level_number, int) or self.level_number <= 0:
             raise ValueError("Level number must be a positive integer.")
-        if not (isinstance(self.material_mass, (int, float)) and self.material_mass > 0):
-            raise ValueError("Active material mass must be a positive.")
-        if not (len(self.level_current) == len(self.level_time) == self.level_number):
-            raise ValueError("Level current and time must have the same length as level number.")
+        if not isinstance(self.material_mass, (int, float)) or self.material_mass <= 0:
+            raise ValueError("Active material mass must be a positive number.")
+        if len(self.level_current) != len(self.level_time) != self.level_number:
+            raise ValueError("Level currents and times must have the same length as level number.")
         if not all(isinstance(x, (int, float)) for x in self.level_current):
-            raise ValueError("Level currents must be a number.")
-        if not all((isinstance(x, (int, float)) and x > 0) for x in self.level_time):
-            raise ValueError("Level times must be positive numbers.")
-              
-class UnifiedDataGCD:
-    def __init__(self, obj, specs):
+            raise ValueError("All level currents must be numbers.")
+        if not all(x > 0 for x in self.level_time):
+            raise ValueError("All level times must be positive numbers.")
+
+
+class UnifiedDataGCD: #Type hintings are wrong. Need a fix !!!!!!#
+    """
+    Represents unified data from a GCD (Galvanostatic Cycling and Discharging) experiment.
+
+    Args:
+        raw_data (pd.DataFrame): DataFrame containing raw data obtained from DataImport in DataImporter.py.
+        specs (GCDExperimentSpecs): Object containing the experimental specifications.
+
+    Attributes:
+        raw_data (pd.DataFrame): DataFrame containing raw data.
+        headers (List[Dict[str, Union[str, float, None]]]): List of dictionaries containing header information.
+        unified_data (pd.DataFrame): DataFrame with converted units.
+    """
+    def __init__(self, raw_data: pd.DataFrame, specs: 'GCDExperimentSpecs') -> None:
+        self.raw_data: pd.DataFrame = raw_data
+        self.headers: List[Dict[str, Union[str, float, None]]] = self.split_headers(raw_data.columns.tolist())
+        self.unified_data: pd.DataFrame = self.unify_data(
+            self.convert_to_si_units(raw_data),
+            specs
+        )
+        
+    def split_headers(self, input_headers: List[str]) -> List[Dict[str, Union[str, float, None]]]:
         """
-        Initializes UnifiedDataGCD object with given data object from DataImport at DataImporter.py.
+        Splits headers into title, unit, and finds SI-conversion multiplier.
 
         Args:
-        - obj: Object from DataImport at DataImporter.py which is containing raw data.
-
-        Attributes:
-        - raw_data: Raw data DataFrame.
-        - headers: List of dictionaries containing header information.
-        - unified_data: DataFrame with converted units.
-        """
-        self.raw_data = obj.data
-        self.headers = self.splitter(self.raw_data.columns.tolist())
-        self.unified_data = self.Unification(
-                                         self.SIConverter(self.raw_data),
-                                         specs
-                                        )
-    def splitter(self, input):
-        """
-        Splits headers into title, unit, and find SI-conversion multiplier.
-
-        Args:
-        - input: List of header names.
+            input_headers (List[str]): List of header names.
 
         Returns:
-        - headers_list: List of dictionaries containing header information with SI-conversion multiplier.
+            List of dictionaries containing header information with SI-conversion multiplier.
         """
-        unitConverisonList = {
+        unit_conversion_list: Dict[str, float] = {
             's' : 1E0,
             'ms': 1E-3,
             'us': 1E-6,
@@ -109,50 +115,63 @@ class UnifiedDataGCD:
             'uV': 1E-6,
         }
 
-        headers_list = []
-        for items in input:
-            if '.' in items:
-                items = items.split('.')[0]
+        headers_list: List[Dict[str, Union[str, float, None]]] = []
+        for item in input_headers:
+            if '.' in item:
+                item = item.split('.')[0]  # Truncate the suffix
             
-            dummy = {
-                'title'             : items.split(' /')[0],
-                'unit'              : items.split(' /')[1],
-                'conversionMulti'   : unitConverisonList.get(items.split(' /')[1], None)
-            }
-            headers_list.append(dummy)
+            title, unit = item.rsplit(' /', 1)
+            headers_list.append({
+                'title': title,
+                'unit': unit,
+                'conversion_multiplier': unit_conversion_list.get(unit, None)
+            })
         return headers_list
     
-    def SIConverter(self, RawData):
+    def convert_to_si_units(self, raw_data: pd.DataFrame) -> pd.DataFrame:
         """
         Converts data units to SI units based on SI-conversion multipliers.
 
         Args:
-        - RawData: DataFrame with raw data.
+            raw_data (pd.DataFrame): DataFrame with raw data.
 
         Returns:
-        - df: DataFrame with converted units.
+            pd.DataFrame: DataFrame with converted units.
         """
-        df = RawData
-        for i in range(len(df.columns)):
-            dummy = df.iloc[:, i]
-            multi = self.headers[i]['conversionMulti']
-            if not multi is None:
-                df.iloc[:, i] = dummy * multi
+        unit_converted_data: pd.DataFrame = raw_data.copy()
+        for i, col in enumerate(unit_converted_data.columns):
+            multi = self.headers[i]['conversion_multiplier']
+            if multi is not None:
+                unit_converted_data[col] *= multi
             else:
                 print("Warning! No matching units found.")
-        df.columns = [item['title'] for item in self.headers]   
-        return df
+        unit_converted_data.columns = [item['title'] for item in self.headers]
+        return unit_converted_data
     
-    def Unification(self, data, specs):
-        if specs.cycle_seperated and specs.level_seperated:
-            new_df = pd.DataFrame()
-            for i in range(data.shape[1]//2):
-                dummy = pd.DataFrame()
-                dummy['Time / s']       = data.iloc[:, 2*i]
-                dummy['Current / A']    = specs.level_current[(i % specs.level_number)]
-                dummy['Potential / V']  = data.iloc[:, 2*i+1]
-                new_df = pd.concat([new_df, dummy], axis=1)
-        return new_df
+    def unify_data(self, data: pd.DataFrame, specs: 'GCDExperimentSpecs') -> pd.DataFrame:
+        """
+        Creates a unified DataFrame combining time, current, and potential data.
+
+        Args:
+            data (pd.DataFrame): DataFrame containing converted data.
+            specs (GCDExperimentSpecs): Specifications object.
+
+        Returns:
+            pd.DataFrame: DataFrame with time, current, and potential data.
+        """
+        if specs.cycle_separated and specs.level_separated:
+            dfs = []
+            for i in range(data.shape[1] // 2):  # Raw data contains Time-Potential pairs. Therefore 2 is needed.
+                df = pd.DataFrame({
+                    'Time / s': data.iloc[:, 2*i],
+                    'Current / A': specs.level_current[(i % specs.level_number)],
+                    'Potential / V': data.iloc[:, 2*i+1]
+                })
+                dfs.append(df)
+            return pd.concat(dfs, axis=1)
+        else:
+            return pd.DataFrame()
+
 
 
 ##### Functions #####
@@ -248,7 +267,7 @@ def CalculaterForBattery(unified_data, specs):
         dummy['Time / s']       = data.iloc[:,3*i]
         dummy['Current / A']    = data.iloc[:,3*i+1]
         dummy['Potential / V']  = data.iloc[:, 3*i+2]
-        dummy['Specific Capacity / mAh/g'] = abs((dummy['Time / s'] / 3600) * dummy['Current / A'] 
+        dummy['Specific Capacity / mAh/g'] = abs((dummy['Time / s'] / 3600) * (dummy['Current / A'] * 1000) 
                                                  / (mass))
         dummy['Energy Density / Wh/kg'] = abs(cumulative_trapezoid(
                                                                dummy['Specific Capacity / mAh/g'],
@@ -285,15 +304,15 @@ if __name__ == "__main__":
     # Example usage
     specs = GCDExperimentSpecs(
         level_number=2,
-        level_current=[0.7038, -0.7038],
+        level_current=[0.0007038, -0.0007038],
         level_time=[99999, 99999],
         material_mass= 0.004116,
-        cycle_seperated=True,
-        level_seperated=True
+        cycle_separated=True,
+        level_separated=True
     )
 
     imported_data = DataImport('./test.xlsx')
-    data = UnifiedDataGCD(imported_data, specs)
+    data = UnifiedDataGCD(imported_data.data, specs)
 
     df , list = CalculaterForBattery(data, specs)
-    DataExporterGCD(list, df,  imported_data.file_name)
+    DataExporterGCD(list, df, imported_data.file_name, number_of_rows=200)
