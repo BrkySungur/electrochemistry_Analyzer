@@ -1,6 +1,7 @@
 from flask import (Flask, flash, jsonify, redirect, render_template, request,
                    session, url_for)
 app = Flask(__name__)
+from DataIO import *
 
 @app.route('/')
 def home():
@@ -8,7 +9,7 @@ def home():
 
 @app.route('/GCD')
 def gcd():
-    return render_template('gcd.html')
+    return render_template('GCD.html')
 
 
 

@@ -1,0 +1,41 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<html>
+
+<head>
+  <meta charset="UTF-8" />
+  <title>Electrochemical Analyzer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-200 flex flex-col h-screen">
+  <header>
+    <div class="bg-blue-800 text-center p-8 text-white flex flex-col items-center gap-4">
+      <a href="./" class="text-5xl font-extrabold">
+        Electrochemical Analyzer
+      </a>
+      <div class="flex flex-row text-center text-lg">
+        <a href="https://github.com/Caisenberg">
+          Murat Can Çetingörür
+        </a>
+        &nbsp;|&nbsp;
+        <a href="https://github.com/BrkySungur">
+          Berkay Sungur
+        </a>
+      </div>
+    </div>
+  </header>
+  <main class="flex-grow">
+    {% block content %} {% endblock %}
+  </main>
+  <footer class="bg-blue-950 text-white px-4 py-8">
+    <div class="flex flex-row justify-between">
+      <p>
+        For any more question ask ....
+      </p>
+      <img src="" alt="GetHelp">
+    </div>
+  </footer>
+</body>
+
+</html>
