@@ -6,43 +6,21 @@ This script defines classes and functions for analyzing data from Galvanostatic 
 Classes:
 - GCDExperimentSpecs: Represents the specifications for a GCD experiment.
 - UnifiedDataGCD: Processes raw data and converts units to create unified data for analysis.
-
-Functions:
-- CalculaterForBattery: Calculates specific capacity for a battery based on provided data and specifications.
-
 Further Notes:
 - Documentation will be added and fixed. !!!!
+- Type hintings will be fixed. !!!!
+- DataImporter.py will be updated. !!!!
 - Delete all the existing documentation for codes and rewrite. !!!!!
 - class objects could be merged
 """
 
-from DataImporter import *
+from DataIO import DataImport, DataExporterGCD
 import pandas as pd
 from scipy.integrate import cumulative_trapezoid
 from typing import List, Dict, Union
 
-##### classes #####
+
 class GCDExperimentSpecs:
-    """
-    Represents the specifications for a GCD (Galvanostatic Cycling and Discharging) experiment.
-
-    Args:
-        level_number (int): The number of levels in the experiment.
-        level_current (List[float]): A list of current values for each level in Ampere.
-        level_time (List[float]): A list of time values for each level.
-        material_mass (float): Mass of the active material in grams.
-        cycle_separated (bool, optional): Whether the cycles are separated. Defaults to False.
-        level_separated (bool, optional): Whether the levels are separated. Defaults to False.
-
-    Raises:
-        ValueError: If levels are separated but cycles are not.
-        ValueError: If level_number is not a positive integer.
-        ValueError: If material_mass is not a positive number.
-        ValueError: If level_current and level_time have different lengths than level_number.
-        ValueError: If any element in level_current is not a number.
-        ValueError: If any element in level_time is not a positive number.
-    """
-
     def __init__(
         self,
         level_number: int,
@@ -75,20 +53,22 @@ class GCDExperimentSpecs:
             raise ValueError("All level times must be positive numbers.")
 
 
-class UnifiedDataGCD: #Type hintings are wrong. Need a fix !!!!!!#
+class UnifiedDataGCD:
     """
-    Represents unified data from a GCD (Galvanostatic Cycling and Discharging) experiment.
-
-    Args:
-        raw_data (pd.DataFrame): DataFrame containing raw data obtained from DataImport in DataImporter.py.
-        specs (GCDExperimentSpecs): Object containing the experimental specifications.
-
-    Attributes:
-        raw_data (pd.DataFrame): DataFrame containing raw data.
-        headers (List[Dict[str, Union[str, float, None]]]): List of dictionaries containing header information.
-        unified_data (pd.DataFrame): DataFrame with converted units.
+    Class for processing and unifying raw data for GCD (Galvanostatic Charge-Discharge) experiments.
     """
+
     def __init__(self, raw_data: pd.DataFrame, specs: 'GCDExperimentSpecs') -> None:
+        """
+        Initializes the UnifiedDataGCD object.
+
+        Args:
+            raw_data (pd.DataFrame): The raw data to be processed and unified.
+            specs (GCDExperimentSpecs): The specifications for the GCD experiment.
+
+        Returns:
+            None
+        """
         self.raw_data: pd.DataFrame = raw_data
         self.headers: List[Dict[str, Union[str, float, None]]] = self.split_headers(raw_data.columns.tolist())
         self.unified_data: pd.DataFrame = self.unify_data(
@@ -98,13 +78,13 @@ class UnifiedDataGCD: #Type hintings are wrong. Need a fix !!!!!!#
         
     def split_headers(self, input_headers: List[str]) -> List[Dict[str, Union[str, float, None]]]:
         """
-        Splits headers into title, unit, and finds SI-conversion multiplier.
+        Splits the input headers into title and unit, and converts the unit to a conversion multiplier.
 
         Args:
-            input_headers (List[str]): List of header names.
+            input_headers (List[str]): The input headers to be split.
 
         Returns:
-            List of dictionaries containing header information with SI-conversion multiplier.
+            List[Dict[str, Union[str, float, None]]]: The split headers with title, unit, and conversion multiplier.
         """
         unit_conversion_list: Dict[str, float] = {
             's' : 1E0,
@@ -118,7 +98,7 @@ class UnifiedDataGCD: #Type hintings are wrong. Need a fix !!!!!!#
         headers_list: List[Dict[str, Union[str, float, None]]] = []
         for item in input_headers:
             if '.' in item:
-                item = item.split('.')[0]  # Truncate the suffix
+                item = item.split('.')[0]  
             
             title, unit = item.rsplit(' /', 1)
             headers_list.append({
@@ -130,13 +110,13 @@ class UnifiedDataGCD: #Type hintings are wrong. Need a fix !!!!!!#
     
     def convert_to_si_units(self, raw_data: pd.DataFrame) -> pd.DataFrame:
         """
-        Converts data units to SI units based on SI-conversion multipliers.
+        Converts the raw data to SI units based on the conversion multipliers.
 
         Args:
-            raw_data (pd.DataFrame): DataFrame with raw data.
+            raw_data (pd.DataFrame): The raw data to be converted.
 
         Returns:
-            pd.DataFrame: DataFrame with converted units.
+            pd.DataFrame: The converted data in SI units.
         """
         unit_converted_data: pd.DataFrame = raw_data.copy()
         for i, col in enumerate(unit_converted_data.columns):
@@ -150,18 +130,18 @@ class UnifiedDataGCD: #Type hintings are wrong. Need a fix !!!!!!#
     
     def unify_data(self, data: pd.DataFrame, specs: 'GCDExperimentSpecs') -> pd.DataFrame:
         """
-        Creates a unified DataFrame combining time, current, and potential data.
+        Unifies the data by combining the time, current, and potential columns.
 
         Args:
-            data (pd.DataFrame): DataFrame containing converted data.
-            specs (GCDExperimentSpecs): Specifications object.
+            data (pd.DataFrame): The data to be unified.
+            specs (GCDExperimentSpecs): The specifications for the GCD experiment.
 
         Returns:
-            pd.DataFrame: DataFrame with time, current, and potential data.
+            pd.DataFrame: The unified data.
         """
         if specs.cycle_separated and specs.level_separated:
             dfs = []
-            for i in range(data.shape[1] // 2):  # Raw data contains Time-Potential pairs. Therefore 2 is needed.
+            for i in range(data.shape[1] // 2):
                 df = pd.DataFrame({
                     'Time / s': data.iloc[:, 2*i],
                     'Current / A': specs.level_current[(i % specs.level_number)],
@@ -171,99 +151,28 @@ class UnifiedDataGCD: #Type hintings are wrong. Need a fix !!!!!!#
             return pd.concat(dfs, axis=1)
         else:
             return pd.DataFrame()
-
-
-
-##### Functions #####
-def DataExporterGCD(levels_info, levels_details, file_path, number_of_rows=100):
-    file_path = file_path + ' Results.xlsx'
-    # Convert JSON data to DataFrame
-    df_summary = pd.DataFrame(levels_info)
-    
-    # Create an Excel writer
-    with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
-        # Write summary DataFrame to the Summary sheet
-        df_summary.to_excel(writer, index=False, sheet_name='Summary')
-        # Get the workbook object
-        workbook = writer.book
-        # Write details DataFrames to the Details sheets
-        for index, items in enumerate(levels_details):
-            # Calculate the step size
-            if not len(items) <= number_of_rows:
-                step_size = max(len(items) // number_of_rows, 1)
-                items = items.iloc[::step_size]
-            # Ensure that the compressed data has the desired number of rows
-            items = items.head(number_of_rows)
-            # Write the details DataFrame to the Details sheet
-            items.to_excel(writer, index=False, sheet_name='Details', startcol=7*index, startrow=1)
-            # Access the Details sheet in the workbook
-            sheet = workbook['Details']
-            # Add string to specific cell
-            sheet.cell(row=1, column=7*index + 1, value='Level ID')
-            sheet.cell(row=1, column=7*index + 2, value=index+1)
-    return
     
 
 def CalculaterForBattery(unified_data, specs):
     """
-    Calculate specific capacity for a battery based on provided data and specifications.
+    Calculate battery properties based on unified data and specifications.
 
     Parameters:
-        unified_data (pandas DataFrame): DataFrame from unified_data of UnifiedDataGCD.
-        # # # mass (float, int): Mass of the active material. Mass should be unit of gram.
+    - unified_data: The unified data containing time, current, and potential values.
+    - specs: The specifications of the battery.
 
     Returns:
-        tuple: A tuple containing:
-            - new_df (pandas DataFrame): DataFrame with calculated specific capacity.
-            - levels_info (list of dicts): Information about each level containing:
-                - Level: Level number.
-                - Current / A: Final current value for the level.
-                - Time / s: Final time value for the level.
-                - Specific Capacity / mAh/g: Calculated specific capacity for the level.
+    - dataframes: A list of dataframes containing calculated battery properties.
+    - levels_info: A list of dictionaries containing information about each level of the battery.
 
-    Example:
-        data:
-            Time / s  |  Current / A  |  Potential / V
-            ------------------------------------------
-            10        |  0.01         |  3.5
-            20        |  0.01         |  3.6
-            ...
-        
-        specs:
-            material_mass: 0.05
-
-        CalculaterForBattery(data, specs) returns:
-            (new_df, levels_info)
-
-        new_df:
-            Time / s  |  Current / A  |  Potential / V  |  Specific Capacity / mAh/g
-            -------------------------------------------------------------------------
-            10        |  0.01         |  3.5            |  0.0005555555555556
-            20        |  0.01         |  3.6            |  0.0011111111111111
-            ...
-
-        levels_info:
-            [
-                {'Level': 0, 'Current / A': 2, 'Time / s': 10, 'Specific Capacity / mAh/g': 0.0005555555555556},
-                {'Level': 1, 'Current / A': 3, 'Time / s': 20, 'Specific Capacity / mAh/g': 0.0011111111111111},
-                ...
-            ]
     """
     mass = specs.material_mass
     data = unified_data.unified_data
-    # Initialize an empty DataFrame to store the calculated data
     new_df = pd.DataFrame()
-    # Initialize an empty list to store level information
     levels_info = []
     dataframes = []
-    # Iterate through each set of three columns in the unified_data DataFrame
     for i in range(data.shape[1]//3):
-        # Initialize a temporary DataFrame to store data for the current level
         dummy = pd.DataFrame()
-        # Extract data for the current level
-        # Calculate specific capacity for the current level
-        # Calculate energy density and power density for the each row of current level
-        # Calculate power density from energy density and time for the each row of current level
         dummy['Time / s']       = data.iloc[:,3*i]
         dummy['Current / A']    = data.iloc[:,3*i+1]
         dummy['Potential / V']  = data.iloc[:, 3*i+2]
@@ -276,10 +185,10 @@ def CalculaterForBattery(unified_data, specs):
                                                                ))
         dummy['Power Density / W/kg'] = dummy['Energy Density / Wh/kg'] / (dummy['Time / s'] / 3600)
 
-        # Drop rows with NaN values
+        
         dummy = dummy.dropna()
         
-        # Store information about the current level
+        
         level_informations = {
             'ID'                        : i+1,
             'Cycle'                     : i//specs.level_number + 1,
@@ -291,17 +200,17 @@ def CalculaterForBattery(unified_data, specs):
             'Power Density / W/kg'      : dummy['Power Density / W/kg'].iloc[-1]
         }
 
-        # Concatenate the current level's data with the overall DataFrame
+        
         dataframes.append(dummy)
-        # Append the information about the current level to the list
+        
         levels_info.append(level_informations)
     
-    # Return the DataFrame and the list of level information
+    
     return dataframes, levels_info
 
-##### Test #####
+
 if __name__ == "__main__":
-    # Example usage
+    
     specs = GCDExperimentSpecs(
         level_number=2,
         level_current=[0.0007038, -0.0007038],
