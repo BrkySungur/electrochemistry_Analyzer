@@ -1,0 +1,3 @@
+"""
+CV specification validators (stub).
+"""
