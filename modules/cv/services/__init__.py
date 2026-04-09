@@ -1,0 +1,3 @@
+"""
+CV services package (stub).
+"""
